@@ -70,8 +70,9 @@ private:
     }
 
     void do_send_http_post() {
-        request_ = "POST " + path_ + " HTTP/1.1\r\nHost: " + host_ + "\r\n\r\n" +
-                   body_ + "\r\n\r\n";
+        std::string contentLength = std::to_string(body_.length());
+        request_ = "POST " + path_ + " HTTP/1.1\r\nHost: " + host_ + "\r\n" +
+                   "Content-Length: " + contentLength + "\r\n\r\n" + body_ + "\r\n\r\n";
         asio::async_write(
                 sock_, asio::buffer(request_),
                 [this](const boost::system::error_code &ec, std::size_t size) {
@@ -179,9 +180,20 @@ private:
     }
 };
 
+void docs() {
+    std::cout << "Usage: mycurl [options...] <url>\n";
+    std::cout << " -d <data>   HTTP POST data\n";
+    std::cout << " -m <method> HTTP method (default: GET)\n";
+}
+
 int main(int argc, char *argv[]) {
     std::string method = "GET";
     std::string body;
+
+    if (argc < 2) {
+        docs();
+        return 0;
+    }
 
     int c;
     while ((c = getopt(argc, argv, "m:d:")) != -1) {
@@ -194,9 +206,8 @@ int main(int argc, char *argv[]) {
                 body = optarg;
                 break;
             default:
-                std::cout << "Usage: curl [options...] <url>\n";
-                std::cout << " -d <data>   HTTP POST data\n";
-                std::cout << " -m <method> HTTP method (default: GET)\n";
+                docs();
+                return 0;
         }
     }
 
@@ -204,15 +215,15 @@ int main(int argc, char *argv[]) {
 
     asio::io_service io_service;
     asio::ip::tcp::resolver resolver(io_service);
-    std::vector<std::unique_ptr<HttpClient>> clients;
+    std::vector <std::unique_ptr<HttpClient>> clients;
 
     std::string host = "jsonplaceholder.typicode.com";
-    std::string path = "/todos/1";
+    std::string path = "/posts";
 
     std::cout << host << ": fetching "
               << path << std::endl;
 
-    std::unique_ptr<HttpClient> client(
+    std::unique_ptr <HttpClient> client(
             new HttpClient(
                     io_service, resolver, host, path, body, method));
     client->Start();
