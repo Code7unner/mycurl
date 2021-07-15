@@ -7,6 +7,8 @@
 #include <boost/asio.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include <fmt/format.h>
+
 namespace asio = boost::asio;
 
 using namespace std::placeholders;
@@ -36,13 +38,11 @@ public:
                 [this](const boost::system::error_code &ec,
                        const asio::ip::tcp::resolver::iterator &it) {
                     if (ec) {
-                        std::cerr << "Error resolving " << host_ << ": "
-                                  << ec.message();
+                        fmt::print(stderr, "Error resolving {}: {}\n", host_, ec.message());
                         return;
                     }
 
-                    std::cout << host_ << ": resolved to " << it->endpoint()
-                              << std::endl;
+                    fmt::print("{}: resolved to {}\n", host_, it->endpoint());
                     do_connect(it->endpoint());
                 });
     }
@@ -52,13 +52,11 @@ private:
         sock_.async_connect(
                 dest, [this](const boost::system::error_code &ec) {
                     if (ec) {
-                        std::cerr << "Error connecting to " << host_ << ": "
-                                  << ec.message();
+                        fmt::print(stderr, "Error connecting to {}: {}\n", host_, ec.message());
                         return;
                     }
 
-                    std::cout << host_ << ": connected to "
-                              << sock_.remote_endpoint() << std::endl;
+                    fmt::print("{}: connected to {}\n", host_, sock_.remote_endpoint());
 
                     if (method_ == "GET") {
                         do_send_http_get();
@@ -71,18 +69,20 @@ private:
 
     void do_send_http_post() {
         std::string contentLength = std::to_string(body_.length());
-        request_ = "POST " + path_ + " HTTP/1.1\r\nHost: " + host_ + "\r\n" +
-                   "Content-Length: " + contentLength + "\r\n\r\n" + body_ + "\r\n\r\n";
+        std::string requestTemplate = "POST {} HTTP/1.1\r\n"
+                                      "Host: {}\r\n"
+                                      "Content-Length: {}\r\n\r\n"
+                                      "{}\r\n\r\n";
+        request_ = fmt::format(requestTemplate, path_, host_, contentLength, body_);
         asio::async_write(
                 sock_, asio::buffer(request_),
                 [this](const boost::system::error_code &ec, std::size_t size) {
                     if (ec) {
-                        std::cerr << "Error sending POST " << ec;
+                        fmt::print(stderr, "Error sending POST: {}: {}\n", ec.category().name(), ec.value());
                         return;
                     }
 
-                    std::cout << host_ << ": sent " << size << " bytes";
-                    std::cout << std::endl;
+                    fmt::print("{}: sent {} bytes\n", host_, size);
 
                     do_recv_http_header();
                 }
@@ -90,17 +90,18 @@ private:
     }
 
     void do_send_http_get() {
-        request_ = "GET " + path_ + " HTTP/1.1\r\nHost: " + host_ + "\r\n\r\n";
+        request_ = fmt::format("GET {} HTTP/1.1\r\n"
+                               "Host: {}\r\n\r\n",
+                               path_, host_);
         asio::async_write(
                 sock_, asio::buffer(request_),
                 [this](const boost::system::error_code &ec, std::size_t size) {
                     if (ec) {
-                        std::cerr << "Error sending GET " << ec;
+                        fmt::print(stderr, "Error sending GET: {}: {}\n", ec.category().name(), ec.value());
                         return;
                     }
 
-                    std::cout << host_ << ": sent " << size << " bytes";
-                    std::cout << std::endl;
+                    fmt::print("{}: sent {} bytes\n", host_, size);
 
                     do_recv_http_header();
                 }
@@ -112,21 +113,18 @@ private:
                 sock_, response_, "\r\n\r\n",
                 [this](const boost::system::error_code &ec, std::size_t size) {
                     if (ec) {
-                        std::cerr << "Error receiving header " << ec;
+                        fmt::print(stderr, "Error receiving header: {}: {}\n", ec.category().name(), ec.value());
                         return;
                     }
 
-                    std::cout << host_ << ": received " << size << ", streambuf "
-                              << response_.size() << std::endl;
+                    fmt::format("{}: received {}, streambuf {}\n", host_, size, response_.size());
 
                     std::string header(
                             asio::buffers_begin(response_.data()),
                             asio::buffers_begin(response_.data()) + size);
                     response_.consume(size);
 
-                    std::cout << host_
-                              << ": header length " << header.size() << std::endl
-                              << header << std::endl;
+                    fmt::print("{}: header length {}\n{}\n", host_, header.size(), header);
 
                     size_t pos = header.find("Content-Length: ");
                     if (pos != std::string::npos) {
@@ -143,7 +141,7 @@ private:
                         return;
                     }
 
-                    std::cerr << "Unknown body length";
+                    fmt::print(stderr, "Unknown body length");
                 });
     }
 
@@ -162,28 +160,29 @@ private:
     void handle_http_body(const boost::system::error_code &ec,
                           std::size_t size) {
         if (ec) {
-            std::cerr << "Error receiving body " << ec;
+            fmt::print(stderr, "Error receiving body: {}: {}\n", ec.category().name(), ec.value());
             return;
         }
 
-        std::cout << host_ << ": received " << size << ", streambuf "
-                  << response_.size() << std::endl;
+        fmt::format("{}: received {}, streambuf {}\n", host_, size, response_.size());
 
         const auto &data = response_.data();
         std::string body(asio::buffers_begin(data), asio::buffers_end(data));
         response_.consume(size);
 
-        std::cout << host_ << ": body length "
-                  << body.size() << std::endl;
-
-        std::cout << body;
+        fmt::print("{}: body length {}\n{}", host_, body.size(), body);
     }
 };
 
-void docs() {
-    std::cout << "Usage: mycurl [options...] <url>\n";
-    std::cout << " -d <data>   HTTP POST data\n";
-    std::cout << " -m <method> HTTP method (default: GET)\n";
+void docs(std::string programName) {
+    if (programName.empty()) {
+        programName = "mycurl";
+    }
+
+    fmt::print("Usage: {} [options...] <url>\n"
+                " -d <data>   HTTP POST data\n"
+                " -m <method> HTTP method (default: GET)\n",
+                programName);
 }
 
 int main(int argc, char *argv[]) {
@@ -191,7 +190,7 @@ int main(int argc, char *argv[]) {
     std::string body;
 
     if (argc < 2) {
-        docs();
+        docs(argv[0]);
         return 0;
     }
 
@@ -206,7 +205,7 @@ int main(int argc, char *argv[]) {
                 body = optarg;
                 break;
             default:
-                docs();
+                docs(argv[0]);
                 return 0;
         }
     }
