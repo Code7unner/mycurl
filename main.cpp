@@ -271,8 +271,8 @@ int main(int argc, char *argv[]) {
     std::string fullUrl = argv[argc - 1];
     Url url(fullUrl);
 
-    std::string host = url.GetHost(); //"jsonplaceholder.typicode.com";
-    std::string path = url.GetPath(); //"/posts";
+    std::string host = url.GetHost();
+    std::string path = url.GetPath();
 
     fmt::print("{}: fetching {}\n", host, path);
 
