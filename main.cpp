@@ -36,7 +36,7 @@ public:
                 [this](const boost::system::error_code &ec,
                        const asio::ip::tcp::resolver::iterator &it) {
                     if (ec) {
-                        std::cout << "Error resolving " << host_ << ": "
+                        std::cerr << "Error resolving " << host_ << ": "
                                   << ec.message();
                         return;
                     }
@@ -52,7 +52,7 @@ private:
         sock_.async_connect(
                 dest, [this](const boost::system::error_code &ec) {
                     if (ec) {
-                        std::cout << "Error connecting to " << host_ << ": "
+                        std::cerr << "Error connecting to " << host_ << ": "
                                   << ec.message();
                         return;
                     }
@@ -77,7 +77,7 @@ private:
                 sock_, asio::buffer(request_),
                 [this](const boost::system::error_code &ec, std::size_t size) {
                     if (ec) {
-                        std::cout << "Error sending POST " << ec;
+                        std::cerr << "Error sending POST " << ec;
                         return;
                     }
 
@@ -95,7 +95,7 @@ private:
                 sock_, asio::buffer(request_),
                 [this](const boost::system::error_code &ec, std::size_t size) {
                     if (ec) {
-                        std::cout << "Error sending GET " << ec;
+                        std::cerr << "Error sending GET " << ec;
                         return;
                     }
 
@@ -112,7 +112,7 @@ private:
                 sock_, response_, "\r\n\r\n",
                 [this](const boost::system::error_code &ec, std::size_t size) {
                     if (ec) {
-                        std::cout << "Error receiving header " << ec;
+                        std::cerr << "Error receiving header " << ec;
                         return;
                     }
 
@@ -143,7 +143,7 @@ private:
                         return;
                     }
 
-                    std::cout << "Unknown body length";
+                    std::cerr << "Unknown body length";
                 });
     }
 
@@ -162,7 +162,7 @@ private:
     void handle_http_body(const boost::system::error_code &ec,
                           std::size_t size) {
         if (ec) {
-            std::cout << "Error receiving body " << ec;
+            std::cerr << "Error receiving body " << ec;
             return;
         }
 
@@ -211,12 +211,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
-//    std::string url = argv[argc - 1];
-
     asio::io_service io_service;
     asio::ip::tcp::resolver resolver(io_service);
     std::vector <std::unique_ptr<HttpClient>> clients;
 
+    //TODO: use host and path from cmd args
     std::string host = "jsonplaceholder.typicode.com";
     std::string path = "/posts";
 
