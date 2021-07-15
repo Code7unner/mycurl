@@ -88,7 +88,12 @@ public:
     HttpClient(asio::io_service &io_service, asio::ip::tcp::resolver &resolver,
                std::string host, std::string path, std::string body, std::string method)
             : host_(std::move(host)), path_(std::move(path)), resolver_(resolver), sock_(io_service),
-              method_(std::move(method)), body_(std::move(body)) {}
+              method_(std::move(method)), body_(std::move(body)) {
+        requestFields_.insert({
+            {"Host", host_},
+            {"User-Agent", "mycurl/1.0"}
+        });
+    }
 
     void Start() {
         resolver_.async_resolve(
@@ -107,6 +112,8 @@ public:
     }
 
 private:
+    std::map<std::string, std::string> requestFields_;
+
     void do_connect(const asio::ip::tcp::endpoint &dest) {
         sock_.async_connect(
                 dest, [this](const boost::system::error_code &ec) {
@@ -125,17 +132,21 @@ private:
     }
 
     void do_send_http() {
-        std::string contentLength = std::to_string(body_.length());
-        std::string requestTemplate = "{} {} HTTP/1.1\r\n"
-                                      "Host: {}\r\n";
-
-        request_ = fmt::format(requestTemplate, method_, path_, host_);
         if (method_ == "POST") {
-            request_ += fmt::format("Content-Length: {}\r\n\r\n"
-                                    "{}\r\n\r\n", contentLength, body_);
-        } else {
-            request_ += "\r\n";
+            requestFields_.emplace("Content-Length", std::to_string(body_.length()));
         }
+
+        request_ = fmt::format("{} {} HTTP/1.1\r\n", method_, path_);
+
+        for (const auto& field : requestFields_) {
+            request_ += fmt::format("{}: {}\r\n", field.first, field.second);
+        }
+        request_ += "\r\n";
+
+        if (method_ == "POST") {
+            request_ += fmt::format("{}\r\n\r\n", body_);
+        }
+
         asio::async_write(
                 sock_, asio::buffer(request_),
                 [this](const boost::system::error_code &ec, std::size_t size) {
