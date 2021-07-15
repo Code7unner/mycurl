@@ -9,6 +9,8 @@ if (Boost_FOUND)
     link_directories("${Boost_LIBRARY_DIRS}")
 endif(Boost_FOUND)
 
+add_subdirectory("include/fmt-8.0.1")
+
 add_executable(mycurl main.cpp)
 
-target_link_libraries(mycurl ${Boost_SYSTEM_LIBRARY} ${Boost_THREAD_LIBRARY})
+target_link_libraries(mycurl ${Boost_SYSTEM_LIBRARY} ${Boost_THREAD_LIBRARY} fmt::fmt)
