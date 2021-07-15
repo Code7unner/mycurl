@@ -1,5 +1,6 @@
 #include <iostream>
 #include <iterator>
+#include <string>
 #include <algorithm>
 #include <utility>
 
@@ -12,6 +13,63 @@
 namespace asio = boost::asio;
 
 using namespace std::placeholders;
+
+class Url {
+public:
+    Url() = delete;
+
+    explicit Url(const std::string& url) {
+        int protocolEndPos = 0;
+        int hostStartPos = 0;
+        int pathStartPos = url.size();
+
+        for (int i = 0; i < url.size(); ++i) {
+            switch (url[i]) {
+                case ':':
+                    protocolEndPos = i;
+                    hostStartPos = i += 3;
+                    break;
+                case '/':
+                    pathStartPos = i;
+                    i = url.size();
+                    break;
+            }
+        }
+
+        if (protocolEndPos != 0) {
+            protocol_ = url.substr(0, protocolEndPos);
+        }
+
+        host_ = url.substr(hostStartPos, pathStartPos - hostStartPos);
+
+        if (pathStartPos != url.size()) {
+            path_ = url.substr(pathStartPos);
+        }
+    }
+
+    Url(std::string host, std::string path)
+        : protocol_("http"), host_(std::move(host)), path_(std::move(path)) {}
+
+    Url(std::string protocol, std::string host, std::string path)
+        : protocol_(std::move(protocol)), host_(std::move(host)), path_(std::move(path)) {}
+
+    std::string GetFullUrl() const {
+        return fmt::format("{}://{}{}", protocol_, host_, path_);
+    }
+    std::string GetProtocol() const {
+        return protocol_;
+    }
+    std::string GetHost() const {
+        return host_;
+    }
+    std::string GetPath() const {
+        return path_;
+    }
+private:
+    std::string protocol_ = "http";
+    std::string host_;
+    std::string path_ = "/";
+};
 
 class HttpClient {
     std::string method_;
@@ -42,7 +100,8 @@ public:
                         return;
                     }
 
-                    fmt::print("{}: resolved to {}\n", host_, it->endpoint());
+                    fmt::print("{}: resolved to {}:{}\n", host_,
+                               it->endpoint().address().to_string(), it->endpoint().port());
                     do_connect(it->endpoint());
                 });
     }
@@ -56,7 +115,9 @@ private:
                         return;
                     }
 
-                    fmt::print("{}: connected to {}\n", host_, sock_.remote_endpoint());
+                    fmt::print("{}: connected to {}:{}\n", host_,
+                               sock_.remote_endpoint().address().to_string(),
+                               sock_.remote_endpoint().port());
 
                     if (method_ == "GET") {
                         do_send_http_get();
@@ -214,12 +275,13 @@ int main(int argc, char *argv[]) {
     asio::ip::tcp::resolver resolver(io_service);
     std::vector <std::unique_ptr<HttpClient>> clients;
 
-    //TODO: use host and path from cmd args
-    std::string host = "jsonplaceholder.typicode.com";
-    std::string path = "/posts";
+    std::string fullUrl = argv[argc - 1];
+    Url url(fullUrl);
 
-    std::cout << host << ": fetching "
-              << path << std::endl;
+    std::string host = url.GetHost(); //"jsonplaceholder.typicode.com";
+    std::string path = url.GetPath(); //"/posts";
+
+    fmt::print("{}: fetching {}\n", host, path);
 
     std::unique_ptr <HttpClient> client(
             new HttpClient(
