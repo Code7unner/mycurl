@@ -119,46 +119,28 @@ private:
                                sock_.remote_endpoint().address().to_string(),
                                sock_.remote_endpoint().port());
 
-                    if (method_ == "GET") {
-                        do_send_http_get();
-                    } else {
-                        do_send_http_post();
-                    }
+                    do_send_http();
                 }
         );
     }
 
-    void do_send_http_post() {
+    void do_send_http() {
         std::string contentLength = std::to_string(body_.length());
-        std::string requestTemplate = "POST {} HTTP/1.1\r\n"
-                                      "Host: {}\r\n"
-                                      "Content-Length: {}\r\n\r\n"
-                                      "{}\r\n\r\n";
-        request_ = fmt::format(requestTemplate, path_, host_, contentLength, body_);
+        std::string requestTemplate = "{} {} HTTP/1.1\r\n"
+                                      "Host: {}\r\n";
+
+        request_ = fmt::format(requestTemplate, method_, path_, host_);
+        if (method_ == "POST") {
+            request_ += fmt::format("Content-Length: {}\r\n\r\n"
+                                    "{}\r\n\r\n", contentLength, body_);
+        } else {
+            request_ += "\r\n";
+        }
         asio::async_write(
                 sock_, asio::buffer(request_),
                 [this](const boost::system::error_code &ec, std::size_t size) {
                     if (ec) {
-                        fmt::print(stderr, "Error sending POST: {}: {}\n", ec.category().name(), ec.value());
-                        return;
-                    }
-
-                    fmt::print("{}: sent {} bytes\n", host_, size);
-
-                    do_recv_http_header();
-                }
-        );
-    }
-
-    void do_send_http_get() {
-        request_ = fmt::format("GET {} HTTP/1.1\r\n"
-                               "Host: {}\r\n\r\n",
-                               path_, host_);
-        asio::async_write(
-                sock_, asio::buffer(request_),
-                [this](const boost::system::error_code &ec, std::size_t size) {
-                    if (ec) {
-                        fmt::print(stderr, "Error sending GET: {}: {}\n", ec.category().name(), ec.value());
+                        fmt::print(stderr, "Error sending {}: {}: {}\n", method_, ec.category().name(), ec.value());
                         return;
                     }
 
